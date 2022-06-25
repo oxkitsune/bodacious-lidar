@@ -2,6 +2,16 @@ import numpy as np
 import pye57
 import open3d as o3d
 
+from tqdm import tqdm 
+from tqdm.contrib import tzip
+
+from dataclasses import dataclass
+
+@dataclass
+class RansacResult:
+    planes: list[list[int]]  # list[list[a, b, c, d]]
+    points: list[np.ndarray]  # list[[x, y, z]]
+
 
 class Pointcloud:
     def __init__(self, verbose=False):
@@ -17,124 +27,167 @@ class Pointcloud:
         pcd.points = o3d.utility.Vector3dVector(np_pcd)
         return pcd
 
-    def chunks(self, chunk_size=1):
+    def chunks(self, chunk_size=2.5):
         pcd = Pointcloud.o3d_to_np(self.pcd)
         min_coords = pcd.min(axis=0)
         max_coords = pcd.max(axis=0)
 
         # calculate chunk sizes
         chunk_sizes = np.ceil((max_coords - min_coords) / chunk_size).astype(int)
-        chunklist = np.zeros(chunk_sizes, dtype=np.object)
+        chunks = np.empty(chunk_sizes, dtype=np.ndarray)
 
         for i, point in enumerate(pcd):
             x_chunk, y_chunk, z_chunk = (point / chunk_size).round().astype(int)
 
-            if type(chunklist[x_chunk, y_chunk, z_chunk]) == int:  #TODO: cringe
-                chunklist[x_chunk, y_chunk, z_chunk] = np.array([i])
+            if chunks[x_chunk, y_chunk, z_chunk] is None:
+                chunks[x_chunk, y_chunk, z_chunk] = np.array([i])
             else:
-                chunklist[x_chunk, y_chunk, z_chunk] = np.append(chunklist[x_chunk, y_chunk, z_chunk], i)
+                chunks[x_chunk, y_chunk, z_chunk] = np.append(chunks[x_chunk, y_chunk, z_chunk], i)
 
         if self.verbose:
             print("Finished chunking pointcloud!")
 
-        return chunklist
+        return chunks
 
-    def find_planes_chunked(self, chunklist, min_inliers=100, inlier_distance_threshold=0.1, ransac_n=3, num_iterations=1000, save=False, save_path=None):
+    def find_planes_chunked(self, chunks, min_inliers=100, inlier_distance_threshold=0.1, ransac_n=3, num_iterations=1000, save=False, save_path=None):
         pcd = Pointcloud.o3d_to_np(self.pcd)
-        chunkresults = np.zeros_like(chunklist)
+        chunked_result = np.empty_like(chunks)
 
-        for x, x_chunk in enumerate(chunklist):
+        for x, x_chunk in enumerate(chunks):
             for y, y_chunk in enumerate(x_chunk):
                 for z, z_chunk in enumerate(y_chunk):
-                    if type(z_chunk) == int:  #TODO: cringe
+                    if z_chunk is None:
                         continue
 
                     self.pcd = Pointcloud.np_to_o3d(pcd[z_chunk])
                     new_planes, new_inlier_points = self.find_planes(min_inliers, inlier_distance_threshold, ransac_n, num_iterations, save, save_path)
                     
-                    chunkresults[x, y, z] = (new_planes, new_inlier_points)
+                    chunked_result[x, y, z] = RansacResult(new_planes, new_inlier_points)
 
         self.pcd = Pointcloud.np_to_o3d(pcd)
-        return chunkresults
+        return chunked_result
 
-    def merge_chunk_planes(self, chunkresults, thresh=0.9):
-        max_x, max_y, max_z = chunkresults.shape
+    def merge_chunk_planes(self, chunked_result, thresh=0.9):
+        max_x, max_y, max_z = chunked_result.shape
 
-        curr_x = np.random.randint(max_x)
-        curr_y = np.random.randint(max_y)
-        curr_z = np.random.randint(max_z)
-        while type(chunkresults[curr_x, curr_y, curr_z]) == int:
-            curr_x = np.random.randint(max_x)
-            curr_y = np.random.randint(max_y)
-            curr_z = np.random.randint(max_z)
+        result = None
 
-        finished = np.zeros_like(chunkresults).astype(bool)
+        for x in tqdm(range(max_x)):
+            for y in range(max_y):
+                for z in range(max_z):
+                    curr = chunked_result[x, y, z]
 
-        res_planes, res_inliers_pts = chunkresults[curr_x, curr_y, curr_z]
+                    if curr is None:
+                        # print("Curr is None")
+                        continue
 
-        planes, inlier_points = self._merge_chunk_planes(chunkresults, res_planes, res_inliers_pts, curr_x, curr_y, curr_z, finished, thresh, 0)
-        return planes, inlier_points
+                    if result is None:
+                        # print("Result is None")
+                        result = curr
+                        continue
+                    
+                    to_add = set(range(len(curr.planes)))
+                    while to_add:
+                        j = to_add.pop()
+                        found_similar = False
+                        for i in range(len(result.planes)):
+                            # similar, merge the planes
+                            if Pointcloud._similar(result.planes[i], curr.planes[j], thresh):
+                                found_similar = True
+                                result.planes[i] = ((result.planes[i] * len(result.points[i]) + curr.planes[j] * len(curr.points[j]))
+                                    / (len(result.points[i]) + len(curr.points[j])))  # weighted average
+                                result.points[i] = np.append(result.points[i], curr.points[j], axis=0)
+
+                        # dissimilar, append the plane
+                        if not found_similar:
+                            result.planes.append(curr.planes[j])
+                            result.points.append(curr.points[j])
+
+        return result
+
+    # def merge_chunk_planes(self, chunked_result, thresh=0.9):
+    #     max_x, max_y, max_z = chunked_result.shape
+
+    #     curr_x = np.random.randint(max_x)
+    #     curr_y = np.random.randint(max_y)
+    #     curr_z = np.random.randint(max_z)
+    #     while type(chunked_result[curr_x, curr_y, curr_z]) == int:
+    #         curr_x = np.random.randint(max_x)
+    #         curr_y = np.random.randint(max_y)
+    #         curr_z = np.random.randint(max_z)
+
+    #     finished = np.zeros_like(chunked_result).astype(bool)
+
+    #     res_planes, res_inliers_pts = chunked_result[curr_x, curr_y, curr_z]
+
+    #     planes, inlier_points = self._merge_chunk_planes(chunked_result, res_planes, res_inliers_pts, curr_x, curr_y, curr_z, finished, thresh, 0)
+    #     return planes, inlier_points
 
 
-    def _merge_chunk_planes(self, chunkresults, res_planes, res_inliers_pts, curr_x, curr_y, curr_z, finished, thresh, depth):
-        # print(f"{depth=}, len res_planes={len(res_planes)}, len new_chunk_len={len(chunkresults[curr_x, curr_y, curr_z])}")
-        print((finished == True).sum())
+    # def _merge_chunk_planes(self, chunked_result, res_planes, res_inliers_pts, curr_x, curr_y, curr_z, finished, thresh, depth):
+    #     # print(f"{depth=}, len res_planes={len(res_planes)}, len new_chunk_len={len(chunked_result[curr_x, curr_y, curr_z])}")
+    #     print((finished == True).sum())
 
-        if (curr_x < 0 or curr_x >= chunkresults.shape[0]
-           or curr_y < 0 or curr_y >= chunkresults.shape[1]
-           or curr_z < 0 or curr_z >= chunkresults.shape[2]):
-            print("out of bounds, returning")
-            return
+    #     if (curr_x < 0 or curr_x >= chunked_result.shape[0]
+    #        or curr_y < 0 or curr_y >= chunked_result.shape[1]
+    #        or curr_z < 0 or curr_z >= chunked_result.shape[2]):
+    #         print("out of bounds, returning")
+    #         return
 
-        if finished[curr_x, curr_y, curr_z]:
-            print(f"already finished {curr_x} {curr_y} {curr_z}")
-            return
+    #     if finished[curr_x, curr_y, curr_z]:
+    #         print(f"already finished {curr_x} {curr_y} {curr_z}")
+    #         return
 
-        if type(chunkresults[curr_x, curr_y, curr_z]) != int:  #TODO: cringe
-            to_add = set()
-            for plane, inlier_pts in zip(res_planes, res_inliers_pts):
-                # print("outer loop")
-                for i, (curr_plane, curr_inlier_pts) in enumerate(zip(*chunkresults[curr_x, curr_y, curr_z])):
-                    # print("inner loop")
+    #     if type(chunked_result[curr_x, curr_y, curr_z]) != int:  #TODO: cringe
+    #         to_add = set()
+    #         for plane, inlier_pts in zip(res_planes, res_inliers_pts):
+    #             # print("outer loop")
+    #             for i, (curr_plane, curr_inlier_pts) in enumerate(zip(*chunked_result[curr_x, curr_y, curr_z])):
+    #                 # print("inner loop")
 
-                    if Pointcloud._similar(plane, curr_plane, thresh):
-                        # create plane that's a weighted average of the two 
-                        plane = [(plane * len(inlier_pts) + curr_plane * len(curr_inlier_pts)
-                            / (len(inlier_pts) + len(curr_inlier_pts)))]
-                        inlier_pts = [np.append(inlier_pts, curr_inlier_pts, axis=0).tolist()]
-                        # print("similar")
-                        # print(inlier_pts)
-                    else:
-                        # print("not similar")
-                        # print(i, len(curr_inlier_pts))
-                        to_add.add(i)
+    #                 if Pointcloud._similar(plane, curr_plane, thresh):
+    #                     # create plane that's a weighted average of the two 
+    #                     plane = [(plane * len(inlier_pts) + curr_plane * len(curr_inlier_pts)
+    #                         / (len(inlier_pts) + len(curr_inlier_pts)))]
+    #                     inlier_pts = [np.append(inlier_pts, curr_inlier_pts, axis=0).tolist()]
+    #                     # print("similar")
+    #                     # print(inlier_pts)
+    #                 else:
+    #                     # print("not similar")
+    #                     # print(i, len(curr_inlier_pts))
+    #                     to_add.add(i)
 
-            if len(to_add) != 0:
-                print(f"{to_add=}")
-                res_planes += [chunkresults[curr_x, curr_y, curr_z][0][i] for i in to_add]
-                res_inliers_pts += [chunkresults[curr_x, curr_y, curr_z][1][i] for i in to_add]
+    #         if len(to_add) != 0:
+    #             print(f"{to_add=}")
+    #             res_planes += [chunked_result[curr_x, curr_y, curr_z][0][i] for i in to_add]
+    #             res_inliers_pts += [chunked_result[curr_x, curr_y, curr_z][1][i] for i in to_add]
 
-        finished[curr_x, curr_y, curr_z] = True
+    #     finished[curr_x, curr_y, curr_z] = True
 
-        self._merge_chunk_planes(chunkresults, res_planes, res_inliers_pts, curr_x + 1, curr_y, curr_z, finished, thresh, depth+1)
-        self._merge_chunk_planes(chunkresults, res_planes, res_inliers_pts, curr_x - 1, curr_y, curr_z, finished, thresh, depth+1)
-        self._merge_chunk_planes(chunkresults, res_planes, res_inliers_pts, curr_x, curr_y + 1, curr_z, finished, thresh, depth+1)
-        self._merge_chunk_planes(chunkresults, res_planes, res_inliers_pts, curr_x, curr_y - 1, curr_z, finished, thresh, depth+1)
-        self._merge_chunk_planes(chunkresults, res_planes, res_inliers_pts, curr_x, curr_y, curr_z + 1, finished, thresh, depth+1)
-        self._merge_chunk_planes(chunkresults, res_planes, res_inliers_pts, curr_x, curr_y, curr_z - 1, finished, thresh, depth+1)
+    #     self._merge_chunk_planes(chunked_result, res_planes, res_inliers_pts, curr_x + 1, curr_y, curr_z, finished, thresh, depth+1)
+    #     self._merge_chunk_planes(chunked_result, res_planes, res_inliers_pts, curr_x - 1, curr_y, curr_z, finished, thresh, depth+1)
+    #     self._merge_chunk_planes(chunked_result, res_planes, res_inliers_pts, curr_x, curr_y + 1, curr_z, finished, thresh, depth+1)
+    #     self._merge_chunk_planes(chunked_result, res_planes, res_inliers_pts, curr_x, curr_y - 1, curr_z, finished, thresh, depth+1)
+    #     self._merge_chunk_planes(chunked_result, res_planes, res_inliers_pts, curr_x, curr_y, curr_z + 1, finished, thresh, depth+1)
+    #     self._merge_chunk_planes(chunked_result, res_planes, res_inliers_pts, curr_x, curr_y, curr_z - 1, finished, thresh, depth+1)
 
-        print("returning finalresults")
-        return res_planes, res_inliers_pts
+    #     print("returning finalresults")
+    #     return res_planes, res_inliers_pts
 
-    def _similar(plane1, plane2, thresh):
+    def _similar(plane1, plane2, thresh=0.9):
         curr_normal = plane1[:3]
         nb_normal = plane2[:3]
 
-        # print(curr_normal, nb_normal)
-
         # find cosine similarity between the planes
         sim = np.dot(curr_normal, nb_normal) / (np.linalg.norm(curr_normal) * np.linalg.norm(nb_normal))
-        return sim > thresh
+
+        # sim = np.abs(sim)
+        # print(sim)
+
+        if np.isnan(sim):
+            print(curr_normal, nb_normal)
+
+        return sim >= thresh
 
     def load_from_e57(self, path):
         if path.endswith(".e57"):
@@ -208,7 +261,7 @@ class Pointcloud:
         np_points = Pointcloud.o3d_to_np(self.pcd)
 
         while True:
-            if len(np_points) < 3:
+            if len(np_points) < ransac_n:
                 break
 
             # RANSAC

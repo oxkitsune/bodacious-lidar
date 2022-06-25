@@ -1,3 +1,4 @@
-
+*.npz
+*.ply
 *.e57
 __pycache__

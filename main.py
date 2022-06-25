@@ -15,13 +15,16 @@ name = "0104Amstel"
 # planes, inlier_points = cloud.find_planes(min_inliers=1000, inlier_distance_threshold=0.10, ransac_n=3, save=True, save_path=name)
  
 # load pointcloud from already processed .ply
-cloud = Pointcloud(verbose=True)
+cloud = Pointcloud(verbose=False)
 cloud.load_from_ply(f"{name}.ply")
 
-chunks = cloud.chunks(chunk_size=2.5)
-chunkresults = cloud.find_planes_chunked(chunks, min_inliers=100, inlier_distance_threshold=0.10, ransac_n=3)
+chunks = cloud.chunks(chunk_size=.5)
+chunked_result = cloud.find_planes_chunked(chunks, min_inliers=10, inlier_distance_threshold=0.10, ransac_n=5)
+result = cloud.merge_chunk_planes(chunked_result, thresh=0.8)
+# print(chunks)
 
-planes, inlier_points = cloud.merge_chunk_planes(chunkresults, thresh=0.01)
+
+# planes, inlier_points = cloud.merge_chunk_planes(chunkresults, thresh=0.01)
 
 # print(inlier_points)
 
@@ -44,4 +47,4 @@ planes, inlier_points = cloud.merge_chunk_planes(chunkresults, thresh=0.01)
 # print(chunkresults.flatten())
 
 # visualize.draw_planes_in_one(chunkresults.flatten()[1])
-visualize.draw_planes_in_one(inlier_points)
+visualize.draw_planes_in_one(result.points)
