@@ -181,7 +181,10 @@ class Pointcloud:
         # find cosine similarity between the planes
         sim = np.dot(curr_normal, nb_normal) / (np.linalg.norm(curr_normal) * np.linalg.norm(nb_normal))
 
-        # sim = np.abs(sim)
+        # sometimes planes will not merge
+        # might be because ransac fit normals are facing
+        # opposite directions
+        sim = np.abs(sim) #TODO: find out if this truly fixes it
         # print(sim)
 
         if np.isnan(sim):

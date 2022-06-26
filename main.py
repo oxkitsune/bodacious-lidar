@@ -18,9 +18,9 @@ name = "0104Amstel"
 cloud = Pointcloud(verbose=False)
 cloud.load_from_ply(f"{name}.ply")
 
-chunks = cloud.chunks(chunk_size=.5)
-chunked_result = cloud.find_planes_chunked(chunks, min_inliers=10, inlier_distance_threshold=0.10, ransac_n=5)
-result = cloud.merge_chunk_planes(chunked_result, thresh=0.8)
+chunks = cloud.chunks(chunk_size=1)
+chunked_result = cloud.find_planes_chunked(chunks, min_inliers=10, inlier_distance_threshold=0.01, ransac_n=3)
+result = cloud.merge_chunk_planes(chunked_result, thresh=0.95)
 # print(chunks)
 
 
