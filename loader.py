@@ -192,17 +192,31 @@ class Pointcloud:
 
         return sim >= thresh
 
-    def load_from_e57(self, path):
+    def load_from_e57(self, path, *, compress=lambda x: x.astype('f')):
         if path.endswith(".e57"):
             path = path[:-4]
 
         e57 = pye57.E57(f"{path}.e57")
 
         # read scan at index 0
-        data = e57.read_scan(0, ignore_missing_fields=True)
+        header = e57.get_header(0)
+
+        # read and compress each dimension seperately
+        def read_field(field):
+            buffers = pye57.libe57.VectorSourceDestBuffer()
+            data, buffer = e57.make_buffer(field, header.point_count)
+
+            buffers.append(buffer)
+            header.points.reader(buffers).read()
+
+            return compress(data)
 
         # creates (n, 3) array of points
-        points = np.array([data["cartesianX"], data["cartesianY"], data["cartesianZ"]]).T
+        points = np.array([
+            read_field("cartesianX"),
+            read_field("cartesianY"),
+            read_field("cartesianZ"),
+        ]).T
 
         # converts it to a o3d pointcloud
         self.pcd = Pointcloud.np_to_o3d(points)
