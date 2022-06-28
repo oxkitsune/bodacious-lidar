@@ -7,10 +7,32 @@ from tqdm.contrib import tzip
 
 from dataclasses import dataclass
 
+
 @dataclass
 class RansacResult:
     planes: list[list[int]]  # list[list[a, b, c, d]]
-    points: list[np.ndarray]  # list[[x, y, z]]
+    points: list[np.ndarray]  # list[ndarray[x, y, z]]
+
+
+def cluster_results(result, eps=0.5, min_points=25):
+    new_result = RansacResult([], [])
+    
+    for i in tqdm(range(len(result.points))):
+        pts = np.array(result.points[i])
+        pcd = Pointcloud.np_to_o3d(pts)
+        labels = np.array(pcd.cluster_dbscan(eps=eps, min_points=min_points, print_progress=False))
+        labelset = set(labels)
+        if -1 in labelset:  # remove noise label
+            labelset.remove(-1)
+
+        for label in labelset:
+            x = pts[labels == label, :]
+            # print(label)
+            # print(labels)
+            new_result.planes.append(result.planes[i])
+            new_result.points.append(x)
+
+    return new_result
 
 
 class Pointcloud:
@@ -97,6 +119,7 @@ class Pointcloud:
                                 result.planes[i] = ((result.planes[i] * len(result.points[i]) + curr.planes[j] * len(curr.points[j]))
                                     / (len(result.points[i]) + len(curr.points[j])))  # weighted average
                                 result.points[i] = np.append(result.points[i], curr.points[j], axis=0)
+                                break
 
                         # dissimilar, append the plane
                         if not found_similar:

@@ -2,3 +2,4 @@
 *.ply
 *.e57
 __pycache__
+images/*

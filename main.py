@@ -1,6 +1,8 @@
-from loader import Pointcloud
+from loader import Pointcloud, cluster_results
 import visualize
 from render import render_magic
+import numpy as np
+import pickle
 
 name = "0104Amstel"
 
@@ -21,12 +23,8 @@ cloud.load_from_ply(f"{name}.ply")
 chunks = cloud.chunks(chunk_size=1)
 chunked_result = cloud.find_planes_chunked(chunks, min_inliers=10, inlier_distance_threshold=0.01, ransac_n=3)
 result = cloud.merge_chunk_planes(chunked_result, thresh=0.95)
-# print(chunks)
 
-
-# planes, inlier_points = cloud.merge_chunk_planes(chunkresults, thresh=0.01)
-
-# print(inlier_points)
+result = cluster_results(result, eps=0.35, min_points=100)
 
 # load ransac results from .npz file
 # import numpy as np
@@ -34,17 +32,14 @@ result = cloud.merge_chunk_planes(chunked_result, thresh=0.95)
 # inlier_points = data["inlier_points"]
 # planes = data["planes"]
 
-# plane_0 = np.array(planes[0][:3], np.float)
-# print(np.linalg.norm(planes[0][:3], axis=0))
+# renders all planes in their own visualization
+# visualize.draw_planes(result.points, max_amount=2)
 
-# plane_0 = plane_0 / np.linalg.norm(planes[0][:3])
+# renders all planes in their own visualization with the other planes greyed out
+# visualize.draw_planes_highlighted(result_split_points, index=0)
 
-# print(plane_0)
+# renders all planes in one visualization
+# visualize.draw_planes_in_one(result.points)
 
-# plane_idx = 0
-# render_magic(inlier_points[plane_idx], planes[plane_idx][:3])
-# visualize.draw_plane(inlier_points[plane_idx], planes[plane_idx][:3])
-# print(chunkresults.flatten())
-
-# visualize.draw_planes_in_one(chunkresults.flatten()[1])
-visualize.draw_planes_in_one(result.points)
+# generates views for every plane and saves result as a .PNG
+visualize.generate_views(result, max_images=50)
