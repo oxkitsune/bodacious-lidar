@@ -42,4 +42,4 @@ result = cluster_results(result, eps=0.35, min_points=100)
 # visualize.draw_planes_in_one(result.points)
 
 # generates views for every plane and saves result as a .PNG
-visualize.generate_views(result, max_images=1)
+visualize.generate_views(result, max_images=50)

@@ -2,7 +2,7 @@ import numpy as np
 import open3d as o3d
 from loader import Pointcloud
 from tqdm.contrib import tzip
-
+from linemesh import LineMesh
 
 def draw_planes(inlier_points, max_amount=10):
     # Pass xyz to o3d pc and visualize
@@ -97,21 +97,21 @@ def generate_views(results, max_images=50):
 
         # scale
         scale_point = np.array([[-2.5, -5, 5], [2.5, -5, 5]])
-        scale_lines = np.array([[0, 1]])
-        scale_colors = np.array([[0, 1, 0]])
+        scale_lines = [[0, 1]]
+        scale_colors = [[0, 1, 0]]
         scale_line = o3d.geometry.LineSet()
-        scale_line.points = o3d.utility.Vector3dVector(scale_point)
-        scale_line.lines = o3d.utility.Vector2iVector(scale_lines)
-        scale_line.colors = o3d.utility.Vector3dVector(scale_colors)
     
+        line_mesh1 = LineMesh(scale_point, scale_lines, scale_colors, radius=0.05)
+        line_mesh1_geoms = line_mesh1.cylinder_segments
 
         vis.add_geometry(pcd)
         vis.add_geometry(line_set)
-        vis.add_geometry(scale_line)
+        for geom in line_mesh1_geoms:
+            vis.add_geometry(geom)
 
         view = vis.get_view_control()
         view.change_field_of_view(step=-55.0) # Standard is 60, 5 is minimum
-        view.set_front(normal)
+        view.set_front(normal / np.linalg.norm(normal))
         view.set_up([normal[0], normal[2], normal[1]])
         view.set_lookat(-normal)
 
