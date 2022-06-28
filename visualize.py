@@ -73,7 +73,10 @@ def generate_views(results, max_images=50):
     points = np.array(results.points, dtype=np.object)[indices]
 
     vis = o3d.visualization.Visualizer()
-    vis.create_window(visible=False)
+    vis.create_window(visible=False, width=3840, height=2160)
+    # render
+    render_opt = vis.get_render_option()
+    render_opt.load_from_json("render_opt.json")
     for i, (curr_plane, curr_inliers) in enumerate(tzip(planes, points)):
         # print(f"{i}: Loading plane {curr_plane=} with {len(curr_inliers)} points")
         normal = curr_plane[:3]
@@ -92,8 +95,19 @@ def generate_views(results, max_images=50):
         line_set.lines = o3d.utility.Vector2iVector(lines)
         line_set.colors = o3d.utility.Vector3dVector(colors)
 
+        # scale
+        scale_point = np.array([[-2.5, -5, 5], [2.5, -5, 5]])
+        scale_lines = np.array([[0, 1]])
+        scale_colors = np.array([[0, 1, 0]])
+        scale_line = o3d.geometry.LineSet()
+        scale_line.points = o3d.utility.Vector3dVector(scale_point)
+        scale_line.lines = o3d.utility.Vector2iVector(scale_lines)
+        scale_line.colors = o3d.utility.Vector3dVector(scale_colors)
+    
+
         vis.add_geometry(pcd)
         vis.add_geometry(line_set)
+        vis.add_geometry(scale_line)
 
         view = vis.get_view_control()
         view.change_field_of_view(step=-55.0) # Standard is 60, 5 is minimum

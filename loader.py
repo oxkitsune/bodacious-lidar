@@ -1,5 +1,5 @@
 import numpy as np
-import pye57
+# import pye57
 import open3d as o3d
 
 from tqdm import tqdm 
@@ -215,38 +215,38 @@ class Pointcloud:
 
         return sim >= thresh
 
-    def load_from_e57(self, path, *, compress=lambda x: x.astype('f')):
-        if path.endswith(".e57"):
-            path = path[:-4]
+    # def load_from_e57(self, path, *, compress=lambda x: x.astype('f')):
+    #     if path.endswith(".e57"):
+    #         path = path[:-4]
 
-        e57 = pye57.E57(f"{path}.e57")
+    #     e57 = pye57.E57(f"{path}.e57")
 
-        # read scan at index 0
-        header = e57.get_header(0)
+    #     # read scan at index 0
+    #     header = e57.get_header(0)
 
-        # read and compress each dimension seperately
-        def read_field(field):
-            buffers = pye57.libe57.VectorSourceDestBuffer()
-            data, buffer = e57.make_buffer(field, header.point_count)
+    #     # read and compress each dimension seperately
+    #     def read_field(field):
+    #         buffers = pye57.libe57.VectorSourceDestBuffer()
+    #         data, buffer = e57.make_buffer(field, header.point_count)
 
-            buffers.append(buffer)
-            header.points.reader(buffers).read()
+    #         buffers.append(buffer)
+    #         header.points.reader(buffers).read()
 
-            return compress(data)
+    #         return compress(data)
 
-        # creates (n, 3) array of points
-        points = np.array([
-            read_field("cartesianX"),
-            read_field("cartesianY"),
-            read_field("cartesianZ"),
-        ]).T
+    #     # creates (n, 3) array of points
+    #     points = np.array([
+    #         read_field("cartesianX"),
+    #         read_field("cartesianY"),
+    #         read_field("cartesianZ"),
+    #     ]).T
 
-        # converts it to a o3d pointcloud
-        self.pcd = Pointcloud.np_to_o3d(points)
+    #     # converts it to a o3d pointcloud
+    #     self.pcd = Pointcloud.np_to_o3d(points)
 
-        if self.verbose:
-            print(f"Loaded pointcloud from {path}.e57.")
-        return self
+    #     if self.verbose:
+    #         print(f"Loaded pointcloud from {path}.e57.")
+    #     return self
 
     def load_from_ply(self, path):
         if path.endswith(".ply"):
