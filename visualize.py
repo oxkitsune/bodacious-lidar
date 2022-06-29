@@ -1,7 +1,6 @@
 import numpy as np
 import open3d as o3d
 from loader import Pointcloud
-from tqdm.contrib import tzip
 from linemesh import LineMesh
 
 def draw_planes(inlier_points, max_amount=10):
@@ -77,7 +76,7 @@ def generate_views(results, max_images=50):
     # render
     render_opt = vis.get_render_option()
     render_opt.load_from_json("render_opt.json")
-    for i, (curr_plane, curr_inliers) in enumerate(tzip(planes, points)):
+    for i, (curr_plane, curr_inliers) in enumerate(zip(planes, points)):
         # print(f"{i}: Loading plane {curr_plane=} with {len(curr_inliers)} points")
         normal = curr_plane[:3]
         center = points[i].mean(axis=0)

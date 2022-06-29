@@ -1,5 +1,7 @@
 *.npz
 *.ply
 *.e57
-__pycache__
-images/*
+__pycache__/
+images/
+venv/
+docs/_build/
