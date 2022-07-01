@@ -94,8 +94,14 @@ def generate_views(results, max_images=50):
         line_set.lines = o3d.utility.Vector2iVector(lines)
         line_set.colors = o3d.utility.Vector3dVector(colors)
 
+
+        view = vis.get_view_control()
+        pinhole = view.convert_to_pinhole_camera_parameters()
+        cam_matrix = pinhole.extrinsic
+
         # scale
         scale_point = np.array([[-2.5, -5, 5], [2.5, -5, 5]])
+        scale_point = cam_matrix @ scale_point
         scale_lines = [[0, 1]]
         scale_colors = [[0, 1, 0]]
         scale_line = o3d.geometry.LineSet()
@@ -108,11 +114,13 @@ def generate_views(results, max_images=50):
         for geom in line_mesh1_geoms:
             vis.add_geometry(geom)
 
-        view = vis.get_view_control()
+        # view = vis.get_view_control()
         view.change_field_of_view(step=-55.0) # Standard is 60, 5 is minimum
         view.set_front(normal / np.linalg.norm(normal))
         view.set_up([normal[0], normal[2], normal[1]])
         view.set_lookat(-normal)
+
+
 
         vis.poll_events()
         vis.update_renderer()
