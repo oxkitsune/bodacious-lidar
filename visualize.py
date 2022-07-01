@@ -63,6 +63,13 @@ def draw_planes_highlighted(inlier_points, index):
 
     o3d.visualization.draw_geometries(pcds)
 
+def e2h(x):
+    if len(x.shape) == 1:
+        return np.hstack((x, [1]))
+    return np.vstack((x, np.ones(x.shape[1])))
+    
+def h2e(tx):
+    return tx[:-1]/tx[-1]
 
 def generate_views(results, max_images=50):
     # top 50 planes with the most points
@@ -96,12 +103,9 @@ def generate_views(results, max_images=50):
 
 
         view = vis.get_view_control()
-        pinhole = view.convert_to_pinhole_camera_parameters()
-        cam_matrix = pinhole.extrinsic
 
         # scale
         scale_point = np.array([[-2.5, -5, 5], [2.5, -5, 5]])
-        scale_point = cam_matrix @ scale_point
         scale_lines = [[0, 1]]
         scale_colors = [[0, 1, 0]]
         scale_line = o3d.geometry.LineSet()

@@ -1,4 +1,4 @@
-import pye57
+# import pye57
 import numpy as np
 import open3d as o3d
 
@@ -12,50 +12,50 @@ class Pointcloud:
         self.pcd = None
         self.verbose = verbose
 
-    @classmethod
-    def from_e57(cls, path, verbose=False, *, compress=lambda x: x.astype('f')):
-        """Loads a pointcloud from a `.e57` file
+    # @classmethod
+    # def from_e57(cls, path, verbose=False, *, compress=lambda x: x.astype('f')):
+    #     """Loads a pointcloud from a `.e57` file
 
-        :param path: The path to the file
-        :type path: string
-        :param verbose: Whether the pointcloud should log messages to stdout
-        :type verbose: bool
+    #     :param path: The path to the file
+    #     :type path: string
+    #     :param verbose: Whether the pointcloud should log messages to stdout
+    #     :type verbose: bool
 
-        :rtype: self
-        """
-        cloud = Pointcloud(verbose=verbose)
+    #     :rtype: self
+    #     """
+    #     cloud = Pointcloud(verbose=verbose)
 
-        if path.endswith(".e57"):
-            path = path[:-4]
+    #     if path.endswith(".e57"):
+    #         path = path[:-4]
 
-        e57 = pye57.E57(f"{path}.e57")
+    #     e57 = pye57.E57(f"{path}.e57")
 
-        # read scan at index 0
-        header = e57.get_header(0)
+    #     # read scan at index 0
+    #     header = e57.get_header(0)
 
-        # read and compress each dimension seperately
-        def read_field(field):
-            buffers = pye57.libe57.VectorSourceDestBuffer()
-            data, buffer = e57.make_buffer(field, header.point_count)
+    #     # read and compress each dimension seperately
+    #     def read_field(field):
+    #         buffers = pye57.libe57.VectorSourceDestBuffer()
+    #         data, buffer = e57.make_buffer(field, header.point_count)
 
-            buffers.append(buffer)
-            header.points.reader(buffers).read()
+    #         buffers.append(buffer)
+    #         header.points.reader(buffers).read()
 
-            return compress(data)
+    #         return compress(data)
 
-        # creates (n, 3) array of points
-        points = np.array([
-            read_field("cartesianX"),
-            read_field("cartesianY"),
-            read_field("cartesianZ"),
-        ]).T
+    #     # creates (n, 3) array of points
+    #     points = np.array([
+    #         read_field("cartesianX"),
+    #         read_field("cartesianY"),
+    #         read_field("cartesianZ"),
+    #     ]).T
 
-        # converts it to a o3d pointcloud
-        cloud.pcd = Pointcloud.np_to_o3d(points)
+    #     # converts it to a o3d pointcloud
+    #     cloud.pcd = Pointcloud.np_to_o3d(points)
 
-        if verbose:
-            print(f"Loaded pointcloud from {path}.e57.")
-        return cloud
+    #     if verbose:
+    #         print(f"Loaded pointcloud from {path}.e57.")
+    #     return cloud
 
     @classmethod
     def from_ply(cls, path, verbose=False):
