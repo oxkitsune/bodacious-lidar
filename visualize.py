@@ -104,6 +104,11 @@ def generate_views(results, max_images=50):
 
         view = vis.get_view_control()
 
+        o1 = np.random.randn(3)
+        o1 -= o1.dot(normal) * normal
+        o2 = np.cross(normal, o1)
+        
+
         # scale
         scale_point = np.array([[-2.5, -5, 5], [2.5, -5, 5]])
         scale_lines = [[0, 1]]
